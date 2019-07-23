@@ -19,14 +19,9 @@ class Mobile extends Text
 
     public function render()
     {
-        $options = json_encode($this->options);
+        $this->inputmask($this->options);
 
-        $this->script = <<<EOT
-
-$('{$this->getElementClassSelector()}').inputmask($options);
-EOT;
-
-        $this->prepend('<i class="fa fa-phone"></i>')
+        $this->prepend('<i class="fa fa-phone fa-fw"></i>')
             ->defaultAttribute('style', 'width: 150px');
 
         return parent::render();

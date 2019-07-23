@@ -3,6 +3,7 @@
 namespace Encore\Admin\Form;
 
 use Encore\Admin\Form;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
 /**
@@ -217,7 +218,7 @@ class EmbeddedForm
     {
         $jsonKey = $field->column();
 
-        $elementName = $elementClass = $errorKey = '';
+        $elementName = $elementClass = $errorKey = [];
 
         if (is_array($jsonKey)) {
             foreach ($jsonKey as $index => $name) {
@@ -265,7 +266,7 @@ class EmbeddedForm
     public function __call($method, $arguments)
     {
         if ($className = Form::findFieldClass($method)) {
-            $column = array_get($arguments, 0, '');
+            $column = Arr::get($arguments, 0, '');
 
             /** @var Field $field */
             $field = new $className($column, array_slice($arguments, 1));

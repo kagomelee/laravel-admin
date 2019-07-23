@@ -3,7 +3,7 @@
 namespace Encore\Admin\Form\Field;
 
 use Encore\Admin\Form\Field;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Arr;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class MultipleFile extends Field
@@ -16,7 +16,7 @@ class MultipleFile extends Field
      * @var array
      */
     protected static $css = [
-        '/vendor/laravel-admin/bootstrap-fileinput/css/fileinput.min.css?v=4.3.7',
+        '/vendor/laravel-admin/bootstrap-fileinput/css/fileinput.min.css?v=4.5.2',
     ];
 
     /**
@@ -25,8 +25,9 @@ class MultipleFile extends Field
      * @var array
      */
     protected static $js = [
-        '/vendor/laravel-admin/bootstrap-fileinput/js/plugins/canvas-to-blob.min.js?v=4.3.7',
-        '/vendor/laravel-admin/bootstrap-fileinput/js/fileinput.min.js?v=4.3.7',
+        '/vendor/laravel-admin/bootstrap-fileinput/js/plugins/canvas-to-blob.min.js',
+        '/vendor/laravel-admin/bootstrap-fileinput/js/fileinput.min.js?v=4.5.2',
+        '/vendor/laravel-admin/bootstrap-fileinput/js/plugins/sortable.min.js?v=4.5.2',
     ];
 
     /**
@@ -61,6 +62,14 @@ class MultipleFile extends Field
             return false;
         }
 
+        if (request()->has(static::FILE_SORT_FLAG)) {
+            return false;
+        }
+
+        if ($this->validator) {
+            return $this->validator->call($this, $input);
+        }
+
         $attributes = [];
 
         if (!$fieldRules = $this->getRules()) {
@@ -69,9 +78,9 @@ class MultipleFile extends Field
 
         $attributes[$this->column] = $this->label;
 
-        list($rules, $input) = $this->hydrateFiles(array_get($input, $this->column, []));
+        list($rules, $input) = $this->hydrateFiles(Arr::get($input, $this->column, []));
 
-        return Validator::make($input, $rules, [], $attributes);
+        return \validator($input, $rules, $this->getValidationMessages(), $attributes);
     }
 
     /**
@@ -83,6 +92,10 @@ class MultipleFile extends Field
      */
     protected function hydrateFiles(array $value)
     {
+        if (empty($value)) {
+            return [[$this->column => $this->getRules()], []];
+        }
+
         $rules = $input = [];
 
         foreach ($value as $key => $file) {
@@ -91,6 +104,27 @@ class MultipleFile extends Field
         }
 
         return [$rules, $input];
+    }
+
+    /**
+     * Sort files.
+     *
+     * @param string $order
+     *
+     * @return array
+     */
+    protected function sortFiles($order)
+    {
+        $order = explode(',', $order);
+
+        $new = [];
+        $original = $this->original();
+
+        foreach ($order as $item) {
+            $new[] = Arr::get($original, $item);
+        }
+
+        return $new;
     }
 
     /**
@@ -104,6 +138,10 @@ class MultipleFile extends Field
     {
         if (request()->has(static::FILE_DELETE_FLAG)) {
             return $this->destroy(request(static::FILE_DELETE_FLAG));
+        }
+
+        if (is_string($files) && request()->has(static::FILE_SORT_FLAG)) {
+            return $this->sortFiles($files);
         }
 
         $targets = array_map([$this, 'prepareForeach'], $files);
@@ -134,7 +172,9 @@ class MultipleFile extends Field
     {
         $this->name = $this->getStoreName($file);
 
-        return $this->upload($file);
+        return tap($this->upload($file), function () {
+            $this->name = null;
+        });
     }
 
     /**
@@ -146,7 +186,7 @@ class MultipleFile extends Field
     {
         $files = $this->value ?: [];
 
-        return array_map([$this, 'objectUrl'], $files);
+        return array_values(array_map([$this, 'objectUrl'], $files));
     }
 
     /**
@@ -177,13 +217,90 @@ class MultipleFile extends Field
         $config = [];
 
         foreach ($files as $index => $file) {
-            $config[] = [
+            $preview = array_merge([
                 'caption' => basename($file),
                 'key'     => $index,
-            ];
+            ], $this->guessPreviewType($file));
+
+            $config[] = $preview;
         }
 
         return $config;
+    }
+
+    /**
+     * Allow to sort files.
+     *
+     * @return $this
+     */
+    public function sortable()
+    {
+        $this->fileActionSettings['showDrag'] = true;
+
+        return $this;
+    }
+
+    /**
+     * @param string $options
+     */
+    protected function setupScripts($options)
+    {
+        $this->script = <<<EOT
+$("input{$this->getElementClassSelector()}").fileinput({$options});
+EOT;
+
+        if ($this->fileActionSettings['showRemove']) {
+            $text = [
+                'title'   => trans('admin.delete_confirm'),
+                'confirm' => trans('admin.confirm'),
+                'cancel'  => trans('admin.cancel'),
+            ];
+
+            $this->script .= <<<EOT
+$("input{$this->getElementClassSelector()}").on('filebeforedelete', function() {
+    
+    return new Promise(function(resolve, reject) {
+    
+        var remove = resolve;
+    
+        swal({
+            title: "{$text['title']}",
+            type: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#DD6B55",
+            confirmButtonText: "{$text['confirm']}",
+            showLoaderOnConfirm: true,
+            cancelButtonText: "{$text['cancel']}",
+            preConfirm: function() {
+                return new Promise(function(resolve) {
+                    resolve(remove());
+                });
+            }
+        });
+    });
+});
+EOT;
+        }
+
+        if ($this->fileActionSettings['showDrag']) {
+            $this->addVariables([
+                'sortable'  => true,
+                'sort_flag' => static::FILE_SORT_FLAG,
+            ]);
+
+            $this->script .= <<<EOT
+$("input{$this->getElementClassSelector()}").on('filesorted', function(event, params) {
+    
+    var order = [];
+    
+    params.stack.forEach(function (item) {
+        order.push(item.key);
+    });
+    
+    $("input{$this->getElementClassSelector()}_sort").val(order);
+});
+EOT;
+        }
     }
 
     /**
@@ -198,15 +315,13 @@ class MultipleFile extends Field
         $this->setupDefaultOptions();
 
         if (!empty($this->value)) {
-            $this->options(['initialPreview' =>$this->preview()]);
+            $this->options(['initialPreview' => $this->preview()]);
             $this->setupPreviewOptions();
         }
 
         $options = json_encode($this->options);
 
-        $this->script = <<<EOT
-$("input{$this->getElementClassSelector()}").fileinput({$options});
-EOT;
+        $this->setupScripts($options);
 
         return parent::render();
     }
@@ -214,20 +329,22 @@ EOT;
     /**
      * Destroy original files.
      *
-     * @return string.
+     * @param string $key
+     *
+     * @return array.
      */
     public function destroy($key)
     {
         $files = $this->original ?: [];
 
-        $file = array_get($files, $key);
+        $file = Arr::get($files, $key);
 
-        if ($this->storage->exists($file)) {
+        if (!$this->retainable && $this->storage->exists($file)) {
             $this->storage->delete($file);
         }
 
         unset($files[$key]);
 
-        return array_values($files);
+        return $files;
     }
 }

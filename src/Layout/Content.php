@@ -4,23 +4,30 @@ namespace Encore\Admin\Layout;
 
 use Closure;
 use Illuminate\Contracts\Support\Renderable;
-use Illuminate\Support\MessageBag;
+use Illuminate\Support\Arr;
 
 class Content implements Renderable
 {
     /**
-     * Content header.
+     * Content title.
      *
      * @var string
      */
-    protected $header = '';
+    protected $title = ' ';
 
     /**
      * Content description.
      *
      * @var string
      */
-    protected $description = '';
+    protected $description = ' ';
+
+    /**
+     * Page breadcrumb.
+     *
+     * @var array
+     */
+    protected $breadcrumb = [];
 
     /**
      * @var Row[]
@@ -40,7 +47,7 @@ class Content implements Renderable
     }
 
     /**
-     * Set header of content.
+     * Alias of method `title`.
      *
      * @param string $header
      *
@@ -48,7 +55,17 @@ class Content implements Renderable
      */
     public function header($header = '')
     {
-        $this->header = $header;
+        return $this->title($header);
+    }
+
+    /**
+     * @param string $title
+     *
+     * @return $this
+     */
+    public function title($title)
+    {
+        $this->title = $title;
 
         return $this;
     }
@@ -65,6 +82,42 @@ class Content implements Renderable
         $this->description = $description;
 
         return $this;
+    }
+
+    /**
+     * Set breadcrumb of content.
+     *
+     * @param array ...$breadcrumb
+     *
+     * @return $this
+     */
+    public function breadcrumb(...$breadcrumb)
+    {
+        $this->validateBreadcrumb($breadcrumb);
+
+        $this->breadcrumb = (array) $breadcrumb;
+
+        return $this;
+    }
+
+    /**
+     * Validate content breadcrumb.
+     *
+     * @param array $breadcrumb
+     *
+     * @throws \Exception
+     *
+     * @return bool
+     */
+    protected function validateBreadcrumb(array $breadcrumb)
+    {
+        foreach ($breadcrumb as $item) {
+            if (!is_array($item) || !Arr::has($item, 'text')) {
+                throw new  \Exception('Breadcrumb format error!');
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -100,6 +153,29 @@ class Content implements Renderable
     }
 
     /**
+     * Render giving view as content body.
+     *
+     * @param string $view
+     * @param array  $data
+     *
+     * @return Content
+     */
+    public function view($view, $data)
+    {
+        return $this->body(view($view, $data));
+    }
+
+    /**
+     * @param $var
+     *
+     * @return Content
+     */
+    public function dump($var)
+    {
+        return $this->row(admin_dump(...func_get_args()));
+    }
+
+    /**
      * Add Row.
      *
      * @param Row $row
@@ -130,6 +206,21 @@ class Content implements Renderable
     }
 
     /**
+     * Set success message for content.
+     *
+     * @param string $title
+     * @param string $message
+     *
+     * @return $this
+     */
+    public function withSuccess($title = '', $message = '')
+    {
+        admin_success($title, $message);
+
+        return $this;
+    }
+
+    /**
      * Set error message for content.
      *
      * @param string $title
@@ -139,9 +230,37 @@ class Content implements Renderable
      */
     public function withError($title = '', $message = '')
     {
-        $error = new MessageBag(compact('title', 'message'));
+        admin_error($title, $message);
 
-        session()->flash('error', $error);
+        return $this;
+    }
+
+    /**
+     * Set warning message for content.
+     *
+     * @param string $title
+     * @param string $message
+     *
+     * @return $this
+     */
+    public function withWarning($title = '', $message = '')
+    {
+        admin_warning($title, $message);
+
+        return $this;
+    }
+
+    /**
+     * Set info message for content.
+     *
+     * @param string $title
+     * @param string $message
+     *
+     * @return $this
+     */
+    public function withInfo($title = '', $message = '')
+    {
+        admin_info($title, $message);
 
         return $this;
     }
@@ -154,19 +273,12 @@ class Content implements Renderable
     public function render()
     {
         $items = [
-            'header'      => $this->header,
+            'header'      => $this->title,
             'description' => $this->description,
+            'breadcrumb'  => $this->breadcrumb,
             'content'     => $this->build(),
         ];
 
         return view('admin::content', $items)->render();
-    }
-
-    /**
-     * @return string
-     */
-    public function __toString()
-    {
-        return $this->render();
     }
 }

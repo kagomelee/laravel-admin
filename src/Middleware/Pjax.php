@@ -3,11 +3,11 @@
 namespace Encore\Admin\Middleware;
 
 use Closure;
+use Encore\Admin\Facades\Admin;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\MessageBag;
 use Symfony\Component\DomCrawler\Crawler;
+use Symfony\Component\HttpFoundation\Response;
 
 class Pjax
 {
@@ -17,13 +17,13 @@ class Pjax
      * @param Request $request
      * @param Closure $next
      *
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @return Response
      */
     public function handle($request, Closure $next)
     {
         $response = $next($request);
 
-        if (!$request->pjax() || $response->isRedirection() || Auth::guard('admin')->guest()) {
+        if (!$request->pjax() || $response->isRedirection() || Admin::guard()->guest()) {
             return $response;
         }
 
@@ -31,8 +31,11 @@ class Pjax
             return $this->handleErrorResponse($response);
         }
 
-        $this->filterResponse($response, $request->header('X-PJAX-CONTAINER'))
-            ->setUriHeader($response, $request);
+        try {
+            $this->filterResponse($response, $request->header('X-PJAX-CONTAINER'))
+                ->setUriHeader($response, $request);
+        } catch (\Exception $exception) {
+        }
 
         return $response;
     }
@@ -40,9 +43,9 @@ class Pjax
     /**
      * Send a response through this middleware.
      *
-     * @param \Symfony\Component\HttpFoundation\Response $response
+     * @param Response $response
      */
-    public static function respond(\Symfony\Component\HttpFoundation\Response $response)
+    public static function respond(Response $response)
     {
         $next = function () use ($response) {
             return $response;
@@ -65,10 +68,10 @@ class Pjax
         $exception = $response->exception;
 
         $error = new MessageBag([
-            'type'      => get_class($exception),
-            'message'   => $exception->getMessage(),
-            'file'      => $exception->getFile(),
-            'line'      => $exception->getLine(),
+            'type'    => get_class($exception),
+            'message' => $exception->getMessage(),
+            'file'    => $exception->getFile(),
+            'line'    => $exception->getLine(),
         ]);
 
         return back()->withInput()->withErrors($error, 'exception');

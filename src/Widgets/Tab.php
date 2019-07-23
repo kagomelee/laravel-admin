@@ -6,6 +6,11 @@ use Illuminate\Contracts\Support\Renderable;
 
 class Tab extends Widget implements Renderable
 {
+    use ContainsForms;
+
+    const TYPE_CONTENT = 1;
+    const TYPE_LINK = 2;
+
     /**
      * @var string
      */
@@ -19,6 +24,7 @@ class Tab extends Widget implements Renderable
         'title'    => '',
         'tabs'     => [],
         'dropDown' => [],
+        'active'   => 0,
     ];
 
     public function __construct()
@@ -31,16 +37,47 @@ class Tab extends Widget implements Renderable
      *
      * @param string            $title
      * @param string|Renderable $content
+     * @param bool              $active
      *
      * @return $this
      */
-    public function add($title, $content)
+    public function add($title, $content, $active = false)
     {
         $this->data['tabs'][] = [
             'id'      => mt_rand(),
             'title'   => $title,
             'content' => $content,
+            'type'    => static::TYPE_CONTENT,
         ];
+
+        if ($active) {
+            $this->data['active'] = count($this->data['tabs']) - 1;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add a link on tab.
+     *
+     * @param string $title
+     * @param string $href
+     * @param bool   $active
+     *
+     * @return $this
+     */
+    public function addLink($title, $href, $active = false)
+    {
+        $this->data['tabs'][] = [
+            'id'      => mt_rand(),
+            'title'   => $title,
+            'href'    => $href,
+            'type'    => static::TYPE_LINK,
+        ];
+
+        if ($active) {
+            $this->data['active'] = count($this->data['tabs']) - 1;
+        }
 
         return $this;
     }
@@ -87,8 +124,11 @@ class Tab extends Widget implements Renderable
      */
     public function render()
     {
-        $variables = array_merge($this->data, ['attributes' => $this->formatAttributes()]);
+        $data = array_merge(
+            $this->data,
+            ['attributes' => $this->formatAttributes()]
+        );
 
-        return view($this->view, $variables)->render();
+        return view($this->view, $data)->render();
     }
 }

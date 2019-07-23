@@ -75,13 +75,13 @@ class UserController extends Controller
             $grid->email();
             $grid->mobile();
             $grid->full_name();
-            $grid->avatar()->value(function ($avatar) {
+            $grid->avatar()->display(function ($avatar) {
                 return "<img src='{$avatar}' />";
             });
             $grid->profile()->postcode('Post code');
             $grid->profile()->address();
             $grid->position('Position');
-            $grid->profile()->color();
+            $grid->column('profile.color');
             $grid->profile()->start_at('开始时间');
             $grid->profile()->end_at('结束时间');
 
@@ -93,7 +93,7 @@ class UserController extends Controller
                 return $this->email.'#'.$this->profile['color'];
             });
 
-            $grid->tags()->value(function ($tags) {
+            $grid->tags()->display(function ($tags) {
                 $tags = collect($tags)->map(function ($tag) {
                     return "<code>{$tag['name']}</code>";
                 })->toArray();
@@ -142,7 +142,7 @@ class UserController extends Controller
             $form->password('password')->rules('confirmed');
             $form->password('password_confirmation');
 
-            $form->divide();
+            $form->divider();
 
             $form->text('profile.first_name');
             $form->text('profile.last_name');

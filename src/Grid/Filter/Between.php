@@ -3,13 +3,14 @@
 namespace Encore\Admin\Grid\Filter;
 
 use Encore\Admin\Admin;
+use Illuminate\Support\Arr;
 
 class Between extends AbstractFilter
 {
     /**
-     * @var null
+     * {@inheritdoc}
      */
-    protected $view = null;
+    protected $view = 'admin::filter.between';
 
     /**
      * Format id.
@@ -54,15 +55,15 @@ class Between extends AbstractFilter
      *
      * @param array $inputs
      *
-     * @return array|mixed|void
+     * @return mixed
      */
     public function condition($inputs)
     {
-        if (!array_has($inputs, $this->column)) {
+        if (!Arr::has($inputs, $this->column)) {
             return;
         }
 
-        $this->value = array_get($inputs, $this->column);
+        $this->value = Arr::get($inputs, $this->column);
 
         $value = array_filter($this->value, function ($val) {
             return $val !== '';
@@ -85,17 +86,27 @@ class Between extends AbstractFilter
         return $this->buildCondition($this->column, $this->value);
     }
 
+    /**
+     * @param array $options
+     *
+     * @return $this
+     */
     public function datetime($options = [])
     {
         $this->view = 'admin::filter.betweenDatetime';
 
-        $this->prepareForDatetime($options);
+        $this->setupDatetime($options);
+
+        return $this;
     }
 
-    protected function prepareForDatetime($options = [])
+    /**
+     * @param array $options
+     */
+    protected function setupDatetime($options = [])
     {
-        $options['format'] = array_get($options, 'format', 'YYYY-MM-DD HH:mm:ss');
-        $options['locale'] = array_get($options, 'locale', config('app.locale'));
+        $options['format'] = Arr::get($options, 'format', 'YYYY-MM-DD HH:mm:ss');
+        $options['locale'] = Arr::get($options, 'locale', config('app.locale'));
 
         $startOptions = json_encode($options);
         $endOptions = json_encode($options + ['useCurrent' => false]);
@@ -112,14 +123,5 @@ class Between extends AbstractFilter
 EOT;
 
         Admin::script($script);
-    }
-
-    public function render()
-    {
-        if (isset($this->view)) {
-            return view($this->view, $this->variables());
-        }
-
-        return parent::render();
     }
 }
